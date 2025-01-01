@@ -1,0 +1,64 @@
+{
+    "Argentina": {
+        "Banda": [
+            "Soda Stereo",
+            "Patricio Rey y sus Redonditos de Ricota",
+            "Los Rodriguez",
+            "Tan Biónica",
+            "Serú Girán",
+            "Sui Generis",
+            "Babasónicos"
+        ],
+        "Equipo de fútbol": [
+            "Boca",
+            "River",
+            "Independiente",
+            "Rosario Central",
+            "Talleres",
+            "Belgrano"
+        ],
+        "Futbolista": [
+            "Diego Maradona",
+            "Lionel Messi",
+            "Mario Alberto Kempes",
+            "Juan Román Riquelme"
+        ],
+        "Músico": [
+            "Luis Alberto Spinetta",
+            "La Mona Jimenez",
+            "Charly García"
+        ]
+    },
+    "Internacional": {
+        "Banda": [
+            "Arctic Monkeys",
+            "Deftones",
+            "Green Day"
+        ],
+        "Equipo de fútbol": [
+            "Real Madrid",
+            "Barcelona",
+            "Manchester City",
+            "Manchester United"
+        ],
+        "Futbolista": [
+            "Pelé",
+            "Andrés Iniesta",
+            "Cristiano Ronaldo",
+            "Luka Modric",
+            "Kylian Mbappé",
+            "Luis Advíncula",
+            "Luis Suarez",
+            "Neymar",
+            "Vinicius Jr."
+        ],
+        "Músico": [
+            "Dua Lipa",
+            "Kanye West",
+            "Taylor Swift",
+            "John Lennon",
+            "The Weeknd",
+            "Tyler the Creator"
+        ]
+    }
+}

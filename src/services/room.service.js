@@ -31,17 +31,24 @@ export function createRoom(roomName, isPasswordProtected, password, maxPlayers, 
         isPasswordProtected,
         password: hashedPassword,
         maxPlayers,
+        bannedCategories: [],
         players: [{
             id: socket.id,
             hostName,
             hostAvatar,
             isHost: true,
             score: 0
-        }]
+        }],
+        gameState: {
+            round: 1,
+            word: null,
+            impostorID: null,
+            votes: {},
+            state: "WAITING"
+        }
     })
 
-    socket.join(code);
-    socket.emit('roomCreated', {code});
+    return code;
 }
 
 export function joinRoom(roomCode, password, playerName, playerAvatar, socket) {
@@ -61,6 +68,11 @@ export function joinRoom(roomCode, password, playerName, playerAvatar, socket) {
         console.error("Contraseña inválida.")
         return;
     }
+    if (room.players.findIndex(player => player.id === socket.id) !== -1) {
+        socket.emit('error', 'El jugador ya esta conectado a la sala')
+        console.error("Jugador ya está en la sala.")
+        return
+    }
 
     room.players.push({
         id: socket.id,
@@ -70,8 +82,13 @@ export function joinRoom(roomCode, password, playerName, playerAvatar, socket) {
         score: 0,
     });
 
-    socket.join(roomCode);
-    socket.emit('joinedRoom', { roomCode });
+    return {
+        roomName: room.roomName,
+        players: room.players,
+        maxPlayers: room.maxPlayers,
+        bannedCategories: room.bannedCategories,
+        gameState: room.gameState
+    }
 }
 
 export function showRooms(socket) {
@@ -97,7 +114,58 @@ export function disconnectFromRoom(socket) {
             } else if (wasHost) {
                 room.players[0].isHost = true;
                 console.log(`El jugador ${room.players[0].id} ahora es el anfitrión de la sala ${code}.`);
+                return room.players
             }
         }
+    }
+}
+
+export function getRoomInfo(roomCode, socket) {
+    const room = rooms.get(roomCode);
+    if(!room) {
+        socket.emit('error', 'No se encontro la sala');
+        console.error(`La sala ${roomCode} no se encontró.`);
+        return;
+    }
+    if (room.players.findIndex(player => player.id === socket.id) == -1) {
+        socket.emit('error', 'El jugador no está conectado a la sala')
+        console.error("Jugador no está en la sala.")
+        return
+    }
+    const roomInfo = {
+        roomName: room.roomName,
+        players: room.players,
+        maxPlayers: room.maxPlayers,
+        bannedCategories: room.bannedCategories,
+        gameState: room.gameState   
+    }
+    socket.emit("roomInfo", roomInfo)
+    console.log("Se emitio informacion de la sala:", roomInfo.roomName)
+}
+
+export function setChoosingCategory(roomCode, socket) {
+    const room = rooms.get(roomCode);
+    if (!room) {
+        socket.emit('error', 'No se encontró la sala.');
+        console.error(`La sala ${roomCode} no se encontró.`);
+        return;
+    }
+
+    const player = room.players.find(player => player.id === socket.id);
+    if (!player || !player.isHost) {
+        socket.emit('error', 'Solo el anfitrión puede cambiar el estado.');
+        console.error(`El jugador ${socket.id} no es el anfitrión.`);
+        return;
+    }
+
+    room.gameState.state = "CHOOSING_CATEGORY";
+    console.log(`El estado de la sala ${roomCode} cambió a CHOOSING_CATEGORY.`);
+    
+    return {
+        roomName: room.roomName,
+        players: room.players,
+        maxPlayers: room.maxPlayers,
+        bannedCategories: room.bannedCategories,
+        gameState: room.gameState
     }
 }
