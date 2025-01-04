@@ -1,6 +1,9 @@
 import bcrypt from 'bcrypt';
+import fs from 'fs';
 
 export const rooms = new Map();
+
+const words = JSON.parse(fs.readFileSync('./src/assets/words.json', 'utf-8'));
 
 const MAX_PLAYERS_LIMIT = 20;
 
@@ -11,6 +14,30 @@ const generateRoomCode = () => {
     } while (rooms.has(code));
     return code;
 };
+
+const getRandomWord = (bannedCategories, region) => {
+    const availableCategories = Object.keys(words[region]).filter(
+        category => !bannedCategories.includes(category)
+    );
+
+    if (availableCategories.length === 0) {
+        throw new Error("No categories available after applying bans.");
+    }
+
+    const randomCategory = availableCategories[
+        Math.floor(Math.random() * availableCategories.length)
+    ];
+
+    const wordsInCategory = words[region][randomCategory];
+    const randomWord = wordsInCategory[
+        Math.floor(Math.random() * wordsInCategory.length)
+    ];
+
+    return {
+        category: randomCategory,
+        word: randomWord};
+};
+
 
 export function createRoom(roomName, isPasswordProtected, password, maxPlayers, hostName, hostAvatar, socket) {
     if (maxPlayers > MAX_PLAYERS_LIMIT) {
@@ -31,17 +58,19 @@ export function createRoom(roomName, isPasswordProtected, password, maxPlayers, 
         isPasswordProtected,
         password: hashedPassword,
         maxPlayers,
-        bannedCategories: [],
         players: [{
             id: socket.id,
-            hostName,
-            hostAvatar,
+            name: hostName,
+            avatar: hostAvatar,
             isHost: true,
             score: 0
         }],
         gameState: {
             round: 1,
             word: null,
+            category: null,
+            region: "Argentina",
+            bannedCategories: [],
             impostorID: null,
             votes: {},
             state: "WAITING"
@@ -86,12 +115,11 @@ export function joinRoom(roomCode, password, playerName, playerAvatar, socket) {
         roomName: room.roomName,
         players: room.players,
         maxPlayers: room.maxPlayers,
-        bannedCategories: room.bannedCategories,
         gameState: room.gameState
     }
 }
 
-export function showRooms(socket) {
+export function showRooms() {
     return Array.from(rooms.entries()).map(([code, room]) => ({
         code,
         roomName: room.roomName,
@@ -123,24 +151,28 @@ export function disconnectFromRoom(socket) {
 export function getRoomInfo(roomCode, socket) {
     const room = rooms.get(roomCode);
     if(!room) {
+        console.error(`Room ${roomCode} not found`);
         socket.emit('error', 'No se encontro la sala');
-        console.error(`La sala ${roomCode} no se encontró.`);
         return;
     }
-    if (room.players.findIndex(player => player.id === socket.id) == -1) {
-        socket.emit('error', 'El jugador no está conectado a la sala')
-        console.error("Jugador no está en la sala.")
-        return
+    
+    const playerIndex = room.players.findIndex(player => player.id === socket.id);
+    console.log(`Player index in room: ${playerIndex}`);
+    
+    if (playerIndex === -1) {
+        console.error(`Player ${socket.id} not found in room ${roomCode}`);
+        socket.emit('error', 'El jugador no está conectado a la sala');
+        return;
     }
+    
     const roomInfo = {
         roomName: room.roomName,
         players: room.players,
         maxPlayers: room.maxPlayers,
-        bannedCategories: room.bannedCategories,
         gameState: room.gameState   
-    }
-    socket.emit("roomInfo", roomInfo)
-    console.log("Se emitio informacion de la sala:", roomInfo.roomName)
+    };
+    
+    socket.emit("roomInfo", roomInfo);
 }
 
 export function setChoosingCategory(roomCode, socket) {
@@ -159,13 +191,91 @@ export function setChoosingCategory(roomCode, socket) {
     }
 
     room.gameState.state = "CHOOSING_CATEGORY";
+    const categories = {
+        argentina: Object.keys(words["Argentina"]),
+        internacional: Object.keys(words["Internacional"])
+    }
+    
+    socket.emit("wordCategories", categories)
     console.log(`El estado de la sala ${roomCode} cambió a CHOOSING_CATEGORY.`);
     
     return {
         roomName: room.roomName,
         players: room.players,
         maxPlayers: room.maxPlayers,
-        bannedCategories: room.bannedCategories,
         gameState: room.gameState
     }
 }
+
+export function startGame(roomCode, region, bannedCategories, socket) {
+    const room = rooms.get(roomCode);
+    if (!room) {
+        socket.emit('error', 'No se encontró la sala.');
+        console.error(`La sala ${roomCode} no se encontró.`);
+        return;
+    }
+
+    const player = room.players.find(player => player.id === socket.id);
+    if (!player || !player.isHost) {
+        socket.emit('error', 'Solo el anfitrión puede cambiar el estado.');
+        console.error(`El jugador ${socket.id} no es el anfitrión.`);
+        return;
+    }
+
+    if (room.gameState.state != "CHOOSING_CATEGORY") {
+        socket.emit('error', 'La sala no está lista para empezar');
+        console.error(`La sala no esta esta lista para empezar`);
+        return;
+    }
+
+    if (!["Argentina", "Internacional"].includes(region)) {
+        socket.emit('error', 'Región inválida')
+        console.error(`La región ${region} es inválida`)
+        return;
+    }
+
+    try {
+        const randomWord = getRandomWord(bannedCategories, region);
+        const randomPlayerIndex = Math.floor(Math.random() * room.players.length);
+        const impostorID = room.players[randomPlayerIndex].id;
+
+        room.gameState.impostorID = impostorID;
+        room.gameState.bannedCategories = bannedCategories;
+        room.gameState.region = region;
+        room.gameState.state = "PLAYING";
+        room.gameState.category = randomWord.category
+
+        room.gameState.word = randomWord.word;
+
+        room.players.forEach(player => {
+            const playerGameState = { ...room.gameState, word: player.id === impostorID ? "???" : room.gameState.word };
+        
+            if (player.id === socket.id) {
+                socket.emit('roomInfo', {
+                    roomName: room.roomName,
+                    players: room.players,
+                    maxPlayers: room.maxPlayers,
+                    gameState: playerGameState
+                });
+                console.log(`Emitido al jugador (host) ${player.id}`);
+            } else {
+                socket.to(player.id).emit('roomInfo', {
+                    roomName: room.roomName,
+                    players: room.players,
+                    maxPlayers: room.maxPlayers,
+                    gameState: playerGameState
+                });
+                console.log(`Emitido a ${player.id}`);
+            }
+        });
+
+        console.log("Partida iniciada en sala", roomCode)
+
+        room.gameState.word = "???"
+
+    } catch (error) {
+        socket.emit('error', error.message);
+    }
+}
+
+

@@ -2,7 +2,7 @@ import express from 'express'
 import http from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
-import { rooms, createRoom, joinRoom, showRooms, disconnectFromRoom, getRoomInfo, setChoosingCategory } from './services/room.service.js'
+import { rooms, createRoom, joinRoom, showRooms, disconnectFromRoom, getRoomInfo, setChoosingCategory, startGame } from './services/room.service.js'
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,10 +25,11 @@ const EVENTS = {
     GET_ROOMS: 'getRooms',
     ROOM_LIST: 'roomList',
     GET_ROOM_INFO: 'getRoomInfo',
-    ROOM_INFO: 'RoomInfo',
+    ROOM_INFO: 'roomInfo',
     PLAYER_LIST: 'playerList',
     PLAYER_DISCONNECT: 'playerDisconnect',
     SET_CHOOSING_CATEGORY: 'setChoosingCategory',
+    START_GAME: 'startGame',
     UPDATE_GAMESTATE: 'updateGameState',
     ERROR: 'error',
 };
@@ -37,7 +38,7 @@ io.on('connection', (socket) => {
     console.log("Nueva conexión:", socket.id);
 
     socket.on(EVENTS.CREATE_ROOM, ({roomName, isPasswordProtected, password, maxPlayers, hostName, hostAvatar}) => {
-        const roomCode =createRoom(roomName, isPasswordProtected, password, maxPlayers, hostName, hostAvatar, socket);
+        const roomCode = createRoom(roomName, isPasswordProtected, password, maxPlayers, hostName, hostAvatar, socket);
         socket.join(roomCode);
         socket.emit(EVENTS.ROOM_CREATED, {roomCode})
         console.log("Sala creada:", roomCode)
@@ -48,7 +49,7 @@ io.on('connection', (socket) => {
         socket.join(roomCode);
         socket.emit(EVENTS.JOINED_ROOM, { roomCode });
         io.to(roomCode).emit(EVENTS.ROOM_INFO, roomInfo);
-        console.log("Unido a la sala:", roomInfo)
+        console.log("Unido a la sala:", roomCode, "- Jugador:" ,socket.id);
     })
 
     socket.on(EVENTS.GET_ROOMS, () => {
@@ -59,8 +60,8 @@ io.on('connection', (socket) => {
 
     socket.on(EVENTS.PLAYER_DISCONNECT, () => {
         const {roomCode, playerList} = disconnectFromRoom(socket);
-        io.to(roomCode).emit(EVENTS.PLAYER_LIST, playerList)
-        console.log("Se desconecto un jugador, lista actualizada:", playerList)
+        io.to(roomCode).emit(EVENTS.PLAYER_LIST, playerList);
+        console.log("Se desconecto un jugador, lista actualizada:", playerList);
     })
 
     socket.on(EVENTS.GET_ROOM_INFO, (roomCode) => {
@@ -68,9 +69,13 @@ io.on('connection', (socket) => {
     })
 
     socket.on(EVENTS.SET_CHOOSING_CATEGORY, (roomCode) => {
-        const gameState = setChoosingCategory(roomCode, socket);
-        if (!gameState) {return}
-        io.to(roomCode).emit(EVENTS.UPDATE_GAMESTATE, gameState);
+        const roomInfo = setChoosingCategory(roomCode, socket);
+        if (!roomInfo) {return}
+        io.to(roomCode).emit(EVENTS.ROOM_INFO, roomInfo);
+    })
+
+    socket.on(EVENTS.START_GAME, (roomCode, region, bannedCategories) => {
+        startGame(roomCode, region, bannedCategories, socket);
     })
 });
 
