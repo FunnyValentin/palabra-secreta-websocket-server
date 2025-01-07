@@ -150,9 +150,9 @@ export function disconnectFromRoom(socket) {
 
 export function getRoomInfo(roomCode, socket) {
     const room = rooms.get(roomCode);
-    if(!room) {
-        console.error(`Room ${roomCode} not found`);
-        socket.emit('error', 'No se encontro la sala');
+    if (!room) {
+        socket.emit('error', 'No se encontró la sala.');
+        console.error(`La sala ${roomCode} no se encontró.`);
         return;
     }
     
@@ -160,7 +160,7 @@ export function getRoomInfo(roomCode, socket) {
     console.log(`Player index in room: ${playerIndex}`);
     
     if (playerIndex === -1) {
-        console.error(`Player ${socket.id} not found in room ${roomCode}`);
+        console.error(`El jugador ${socket.id} no esta conectado a la sala ${roomCode}`);
         socket.emit('error', 'El jugador no está conectado a la sala');
         return;
     }
@@ -276,6 +276,32 @@ export function startGame(roomCode, region, bannedCategories, socket) {
     } catch (error) {
         socket.emit('error', error.message);
     }
+}
+
+export function handleVote(idVoted, roomCode, socket) {
+    const room = rooms.get(roomCode);
+    if (!room) {
+        socket.emit('error', 'No se encontró la sala.');
+        console.error(`La sala ${roomCode} no se encontró.`);
+        return;
+    };
+
+    const voterIndex = room.players.findIndex(player => player.id === socket.id);
+    const votedIndex = room.players.findIndex(player => player.id === idVoted);
+    
+    
+    if (voterIndex === -1) {
+        console.error(`El jugador ${socket.id} no esta conectado a la sala ${roomCode}`);
+        socket.emit('error', 'El jugador no está conectado a la sala');
+        return;
+    }
+    if (votedIndex === -1) {
+        console.error(`El jugador ${idVoted} no esta conectado a la sala ${roomCode}`);
+        socket.emit('error', 'El jugador no está conectado a la sala');
+        return;
+    }
+
+
 }
 
 

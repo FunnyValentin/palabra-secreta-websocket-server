@@ -30,6 +30,7 @@ const EVENTS = {
     PLAYER_DISCONNECT: 'playerDisconnect',
     SET_CHOOSING_CATEGORY: 'setChoosingCategory',
     START_GAME: 'startGame',
+    VOTE: 'vote',
     UPDATE_GAMESTATE: 'updateGameState',
     ERROR: 'error',
 };
@@ -46,6 +47,7 @@ io.on('connection', (socket) => {
 
     socket.on(EVENTS.JOIN_ROOM, ({roomCode, password, playerName, playerAvatar}) => {
         const roomInfo = joinRoom(roomCode, password, playerName, playerAvatar, socket);
+        if (!roomInfo) {return};
         socket.join(roomCode);
         socket.emit(EVENTS.JOINED_ROOM, { roomCode });
         io.to(roomCode).emit(EVENTS.ROOM_INFO, roomInfo);
@@ -76,6 +78,10 @@ io.on('connection', (socket) => {
 
     socket.on(EVENTS.START_GAME, (roomCode, region, bannedCategories) => {
         startGame(roomCode, region, bannedCategories, socket);
+    })
+
+    socket.on(EVENTS.VOTE, (idVoted) => {
+
     })
 });
 
