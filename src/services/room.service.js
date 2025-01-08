@@ -38,6 +38,10 @@ const getRandomWord = (bannedCategories, region) => {
         word: randomWord};
 };
 
+const getWord = (playerID, gameState) => {
+    return playerID == gameState.impostorID ? '???' : gameState.word;
+} 
+
 
 export function createRoom(roomName, isPasswordProtected, password, maxPlayers, hostName, hostAvatar, socket) {
     if (maxPlayers > MAX_PLAYERS_LIMIT) {
@@ -115,7 +119,10 @@ export function joinRoom(roomCode, password, playerName, playerAvatar, socket) {
         roomName: room.roomName,
         players: room.players,
         maxPlayers: room.maxPlayers,
-        gameState: room.gameState
+        gameState: { 
+            ...room.gameState, 
+            word: getWord(player.id, room.gameState) 
+        }
     }
 }
 
@@ -169,7 +176,10 @@ export function getRoomInfo(roomCode, socket) {
         roomName: room.roomName,
         players: room.players,
         maxPlayers: room.maxPlayers,
-        gameState: room.gameState   
+        gameState: {
+            ...room.gameState,
+            word: getWord(socket.id, room.gameState)
+        } 
     };
     
     socket.emit("roomInfo", roomInfo);
@@ -203,7 +213,10 @@ export function setChoosingCategory(roomCode, socket) {
         roomName: room.roomName,
         players: room.players,
         maxPlayers: room.maxPlayers,
-        gameState: room.gameState
+        gameState: { 
+            ...room.gameState, 
+            word: getWord(player.id, room.gameState) 
+        }
     }
 }
 
@@ -248,14 +261,15 @@ export function startGame(roomCode, region, bannedCategories, socket) {
         room.gameState.word = randomWord.word;
 
         room.players.forEach(player => {
-            const playerGameState = { ...room.gameState, word: player.id === impostorID ? "???" : room.gameState.word };
-        
             if (player.id === socket.id) {
                 socket.emit('roomInfo', {
                     roomName: room.roomName,
                     players: room.players,
                     maxPlayers: room.maxPlayers,
-                    gameState: playerGameState
+                    gameState: { 
+                        ...room.gameState, 
+                        word: getWord(player.id, room.gameState) 
+                    }
                 });
                 console.log(`Emitido al jugador (host) ${player.id}`);
             } else {
@@ -263,15 +277,16 @@ export function startGame(roomCode, region, bannedCategories, socket) {
                     roomName: room.roomName,
                     players: room.players,
                     maxPlayers: room.maxPlayers,
-                    gameState: playerGameState
+                    gameState: { 
+                        ...room.gameState, 
+                        word: getWord(player.id, room.gameState) 
+                    }
                 });
                 console.log(`Emitido a ${player.id}`);
             }
         });
 
         console.log("Partida iniciada en sala", roomCode)
-
-        room.gameState.word = "???"
 
     } catch (error) {
         socket.emit('error', error.message);
@@ -288,8 +303,6 @@ export function handleVote(idVoted, roomCode, socket) {
 
     const voterIndex = room.players.findIndex(player => player.id === socket.id);
     const votedIndex = room.players.findIndex(player => player.id === idVoted);
-    
-    
     if (voterIndex === -1) {
         console.error(`El jugador ${socket.id} no esta conectado a la sala ${roomCode}`);
         socket.emit('error', 'El jugador no está conectado a la sala');
@@ -301,7 +314,72 @@ export function handleVote(idVoted, roomCode, socket) {
         return;
     }
 
+    try {
+        room.gameState.votes[socket.id] = idVoted;
+        console.log(`Jugador ${socket.id} votó a ${idVoted}`)
 
+        const totalPlayers = room.players.length;
+        const votesCount = Object.keys(room.gameState.votes).length;
+
+        if (votesCount === totalPlayers) {
+            console.log("Todos los jugadores han votado. Calculando resultados...");
+            const voteResults = {};
+            Object.values(room.gameState.votes).forEach(votedId => {
+                voteResults[votedId] = (voteResults[votedId] || 0) + 1;
+            });
+            const mostVotedPlayer = Object.keys(voteResults).reduce((a, b) => 
+                voteResults[a] > voteResults[b] ? a : b
+            );
+
+            const impostorCaught = mostVotedPlayer === room.gameState.impostorID;
+
+            if (!impostorCaught) {
+                const impostor = room.players.find(player => player.id === room.gameState.impostorID);
+                if (impostor) {
+                    impostor.score += 1;
+                    console.log(`-El impostor ${impostor.name} no fue descubierto y ha ganado un punto.`);
+                } else {
+                    console.error("-No se encontró al impostor en la sala.");
+                }
+            }
+
+            room.gameState = "END";
+            room.gameState.votes = {};
+            room.gameState.round += 1;
+            room.gameState.word = null;
+            room.gameState.category = null;
+            room.gameState.impostorID = null;
+
+            return {
+                result: impostorCaught,
+            }
+        }
+    } catch (error) {
+        socket.emit('error', error.message)
+    }
+
+}
+
+export function nextRound(roomCode, socket) {
+    const room = rooms.get(roomCode);
+    if (!room) {
+        socket.emit('error', 'No se encontró la sala.');
+        console.error(`La sala ${roomCode} no se encontró.`);
+        return;
+    }
+
+    const player = room.players.find(player => player.id === socket.id);
+    if (!player || !player.isHost) {
+        socket.emit('error', 'Solo el anfitrión puede cambiar el estado.');
+        console.error(`El jugador ${socket.id} no es el anfitrión.`);
+        return;
+    }
+
+    if (room.gameState.state != "END") {
+        socket.emit('error', 'La sala no está lista para empezar');
+        console.error(`La sala no esta esta lista para empezar`);
+        return;
+    }
 }
 
 

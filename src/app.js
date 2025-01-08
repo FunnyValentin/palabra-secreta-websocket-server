@@ -2,7 +2,7 @@ import express from 'express'
 import http from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
-import { rooms, createRoom, joinRoom, showRooms, disconnectFromRoom, getRoomInfo, setChoosingCategory, startGame } from './services/room.service.js'
+import { rooms, createRoom, joinRoom, showRooms, disconnectFromRoom, getRoomInfo, setChoosingCategory, startGame, handleVote } from './services/room.service.js'
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -80,8 +80,11 @@ io.on('connection', (socket) => {
         startGame(roomCode, region, bannedCategories, socket);
     })
 
-    socket.on(EVENTS.VOTE, (idVoted) => {
-
+    socket.on(EVENTS.VOTE, (idVoted, roomCode) => {
+        const result = handleVote(idVoted, roomCode, socket);
+        if (result) {
+            io.to(roomCode).emit(EVENTS.ROUND_RESULT)
+        }
     })
 });
 
