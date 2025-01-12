@@ -75,7 +75,8 @@ io.on('connection', (socket) => {
 
     socket.on(EVENTS.HANDLE_VOTE, (roomCode, idVoted) => {
         const result = handleVote(idVoted, roomCode, socket);
-        if (result) {
+        if (result !== null) {
+            console.log("Emitiendo resultado, impostorCaught:", result)
             io.to(roomCode).emit(EVENTS.ROUND_RESULT, result);
         }
     })

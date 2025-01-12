@@ -325,8 +325,7 @@ export function handleVote(idVoted, roomCode, socket) {
                     console.log(`El impostor ${impostor.name} no fue descubierto y ha ganado un punto.`);
                 }
             }
-            room.gameState.round += 1;
-            room.gameState.votes = {};
+
             room.gameState.state = "END";
 
             emitRoomInfo(room, socket);
@@ -369,6 +368,8 @@ export function nextRound(roomCode, socket) {
         const randomPlayerIndex = Math.floor(Math.random() * room.players.length);
         const impostorID = room.players[randomPlayerIndex].id;
 
+        room.gameState.round += 1;
+        room.gameState.votes = {};
         room.gameState.impostorID = impostorID;
         room.gameState.state = "PLAYING";
         room.gameState.category = randomWord.category
