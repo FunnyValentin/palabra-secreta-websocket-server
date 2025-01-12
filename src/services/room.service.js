@@ -271,7 +271,6 @@ export function startGame(roomCode, region, bannedCategories, socket) {
         room.gameState.region = region;
         room.gameState.state = "PLAYING";
         room.gameState.category = randomWord.category
-
         room.gameState.word = randomWord.word;
 
         emitRoomInfo(room, socket);
@@ -326,12 +325,8 @@ export function handleVote(idVoted, roomCode, socket) {
                     console.log(`El impostor ${impostor.name} no fue descubierto y ha ganado un punto.`);
                 }
             }
-
             room.gameState.round += 1;
             room.gameState.votes = {};
-            room.gameState.word = null;
-            room.gameState.category = null;
-            room.gameState.impostorID = null;
             room.gameState.state = "END";
 
             emitRoomInfo(room, socket);
@@ -367,6 +362,22 @@ export function nextRound(roomCode, socket) {
         socket.emit('error', 'La sala no está lista para empezar');
         console.error(`La sala no esta esta lista para empezar`);
         return;
+    }
+
+    try {
+        const randomWord = getRandomWord(room.gameState.bannedCategories, room.gameState.region);
+        const randomPlayerIndex = Math.floor(Math.random() * room.players.length);
+        const impostorID = room.players[randomPlayerIndex].id;
+
+        room.gameState.impostorID = impostorID;
+        room.gameState.state = "PLAYING";
+        room.gameState.category = randomWord.category
+        room.gameState.word = randomWord.word;
+
+        emitRoomInfo(room, socket);
+        console.log("Partida iniciada en sala", roomCode);
+    } catch (error) {
+        console.error("Error en nextRound", error)
     }
 }
 
