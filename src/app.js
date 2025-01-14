@@ -39,6 +39,11 @@ const EVENTS = {
 io.on('connection', (socket) => {
     console.log("Nueva conexión:", socket.id);
 
+    socket.on('disconnect', () => {
+        disconnectFromRoom(socket);
+        console.log(`Socket ${socket.id} se ha desconectado.`);
+    });
+
     socket.on(EVENTS.CREATE_ROOM, ({roomName, isPasswordProtected, password, maxPlayers, hostName, hostAvatar}) => {
         const roomCode = createRoom(roomName, isPasswordProtected, password, maxPlayers, hostName, hostAvatar, socket);
         socket.join(roomCode);
