@@ -119,6 +119,10 @@ export function joinRoom(roomCode, password, playerName, playerAvatar, socket) {
         console.error(`La sala ${roomCode} no se encontró.`);
         return;
     }
+    if (room.players.findIndex(player => player.id === socket.id) !== -1) {
+        socket.emit('joinedRoom', { roomCode });
+        return
+    }
     if (room.players.length >= room.maxPlayers) {
         socket.emit('error', 'La sala esta llena');
         console.error(`La sala ${roomCode} esta llena.`)
@@ -128,11 +132,6 @@ export function joinRoom(roomCode, password, playerName, playerAvatar, socket) {
         socket.emit('error', 'Contraseña invalida');
         console.error("Contraseña inválida.")
         return;
-    }
-    if (room.players.findIndex(player => player.id === socket.id) !== -1) {
-        socket.emit('error', 'El jugador ya esta conectado a la sala')
-        console.error("Jugador ya está en la sala.")
-        return
     }
 
     room.players.push({
@@ -242,6 +241,11 @@ export function startGame(roomCode, region, bannedCategories, socket) {
         return;
     }
 
+    if (room.players.length < 3) {
+        socket.error('No hay suficientes jugadores para empezar')
+        console.error('No hay suficientes jugadores')
+    }
+
     const player = room.players.find(player => player.id === socket.id);
     if (!player || !player.isHost) {
         socket.emit('error', 'Solo el anfitrión puede cambiar el estado.');
@@ -266,6 +270,10 @@ export function startGame(roomCode, region, bannedCategories, socket) {
         const randomPlayerIndex = Math.floor(Math.random() * room.players.length);
         const impostorID = room.players[randomPlayerIndex].id;
 
+        if (room.gameState.impostorID != null) {
+            room.gameState.round += 1;
+        }
+        room.gameState.votes = {};
         room.gameState.impostorID = impostorID;
         room.gameState.bannedCategories = bannedCategories;
         room.gameState.region = region;
@@ -350,6 +358,12 @@ export function nextRound(roomCode, socket) {
         return;
     }
 
+    if (room.players.length < 3) {
+        socket.error('No hay suficientes jugadores para empezar')
+        console.error('No hay suficientes jugadores')
+    }
+
+
     const player = room.players.find(player => player.id === socket.id);
     if (!player || !player.isHost) {
         socket.emit('error', 'Solo el anfitrión puede cambiar el estado.');
@@ -357,7 +371,7 @@ export function nextRound(roomCode, socket) {
         return;
     }
 
-    if (room.gameState.state != "END") {
+    if (room.gameState.state != "END" && room.gameState.state != "SKIPPED") {
         socket.emit('error', 'La sala no está lista para empezar');
         console.error(`La sala no esta esta lista para empezar`);
         return;
@@ -380,6 +394,26 @@ export function nextRound(roomCode, socket) {
     } catch (error) {
         console.error("Error en nextRound", error)
     }
+}
+
+export function skipRound(roomCode, socket) {
+    const room = rooms.get(roomCode);
+    if (!room) {
+        socket.emit('error', 'No se encontró la sala.');
+        console.error(`La sala ${roomCode} no se encontró.`);
+        return null;
+    }
+
+    const player = room.players.find(player => player.id === socket.id);
+    if (!player || !player.isHost) {
+        socket.emit('error', 'Solo el anfitrión puede cambiar el estado.');
+        console.error(`El jugador ${socket.id} no es el anfitrión.`);
+        return;
+    }
+
+    room.gameState.state = "SKIPPED";
+
+    emitRoomInfo(room, socket);
 }
 
 

@@ -2,7 +2,7 @@ import express from 'express'
 import http from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
-import { rooms, createRoom, joinRoom, showRooms, disconnectFromRoom, getRoomInfo, setChoosingCategory, startGame, handleVote, nextRound } from './services/room.service.js'
+import { rooms, createRoom, joinRoom, showRooms, disconnectFromRoom, getRoomInfo, setChoosingCategory, startGame, handleVote, nextRound, skipRound } from './services/room.service.js'
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,6 +32,7 @@ const EVENTS = {
     HANDLE_VOTE: 'handleVote',
     ROUND_RESULT: 'roundResult',
     NEXT_ROUND: 'nextRound',
+    SKIP_ROUND: 'skipRound',
     UPDATE_GAMESTATE: 'updateGameState',
     ERROR: 'error',
 };
@@ -90,6 +91,9 @@ io.on('connection', (socket) => {
         nextRound(roomCode, socket);
     })
 
+    socket.on(EVENTS.SKIP_ROUND, (roomCode) => {
+        skipRound(roomCode, socket);
+    })
 });
 
 server.listen(PORT, () => console.log(`Servidor iniciado en puerto ${PORT}`));
